@@ -8,12 +8,12 @@ import android.content.Context;
 import android.content.res.TypedArray;
 import android.database.DataSetObserver;
 import android.graphics.Point;
-import android.support.v4.view.ViewCompat;
 import android.util.AttributeSet;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
+import android.widget.BaseAdapter;
 import android.widget.FrameLayout;
 
 import com.yuyakaido.android.cardstackview.internal.CardContainerView;
@@ -28,29 +28,37 @@ public class CardStackView extends FrameLayout {
 
     public interface CardEventListener {
         void onCardDragging(float percentX, float percentY);
+
         void onCardSwiped(SwipeDirection direction);
+
         void onCardReversed();
+
         void onCardMovedToOrigin();
+
         void onCardClicked(int index);
     }
 
     private CardStackOption option = new CardStackOption();
     private CardStackState state = new CardStackState();
 
-    private ArrayAdapter<?> adapter = null;
+    private BaseAdapter adapter = null;
     private LinkedList<CardContainerView> containers = new LinkedList<>();
     private CardEventListener cardEventListener = null;
     private DataSetObserver dataSetObserver = new DataSetObserver() {
         @Override
         public void onChanged() {
-            boolean shouldReset = false;
-            if (state.isPaginationReserved) {
-                state.isPaginationReserved = false;
+            if (state.lastCount == 0) {
+                initialize(false);
             } else {
-                boolean isSameCount = state.lastCount == adapter.getCount();
-                shouldReset = !isSameCount;
+                if (state.lastCount > adapter.getCount()) {
+                    initialize(true);
+                } else {
+                    if (!state.isPaginationReserved) {
+                        boolean isSameCount = state.lastCount == adapter.getCount();
+                        initialize(!isSameCount);
+                    }
+                }
             }
-            initialize(shouldReset);
             state.lastCount = adapter.getCount();
         }
     };
@@ -59,10 +67,12 @@ public class CardStackView extends FrameLayout {
         public void onContainerDragging(float percentX, float percentY) {
             update(percentX, percentY);
         }
+
         @Override
         public void onContainerSwiped(Point point, SwipeDirection direction) {
             swipe(point, direction);
         }
+
         @Override
         public void onContainerMovedToOrigin() {
             initializeCardStackPosition();
@@ -70,6 +80,7 @@ public class CardStackView extends FrameLayout {
                 cardEventListener.onCardMovedToOrigin();
             }
         }
+
         @Override
         public void onContainerClicked() {
             if (cardEventListener != null) {
@@ -198,11 +209,11 @@ public class CardStackView extends FrameLayout {
         for (int i = 0; i < option.visibleCount; i++) {
             CardContainerView view = containers.get(i);
             view.reset();
-            ViewCompat.setTranslationX(view, 0f);
-            ViewCompat.setTranslationY(view, 0f);
-            ViewCompat.setScaleX(view, 1f);
-            ViewCompat.setScaleY(view, 1f);
-            ViewCompat.setRotation(view, 0f);
+            view.setTranslationX(0f);
+            view.setTranslationY(0f);
+            view.setScaleX(1f);
+            view.setScaleY(1f);
+            view.setRotation(0f);
         }
     }
 
@@ -221,8 +232,8 @@ public class CardStackView extends FrameLayout {
             float currentScale = 1f - (i * option.scaleDiff);
             float nextScale = 1f - ((i - 1) * option.scaleDiff);
             float percent = currentScale + (nextScale - currentScale) * Math.abs(percentX);
-            ViewCompat.setScaleX(view, percent);
-            ViewCompat.setScaleY(view, percent);
+            view.setScaleX(percent);
+            view.setScaleY(percent);
 
             float currentTranslationY = i * Util.toPx(getContext(), option.translationDiff);
             if (option.stackFrom == StackFrom.Top) {
@@ -235,15 +246,15 @@ public class CardStackView extends FrameLayout {
             }
 
             float translationY = currentTranslationY - Math.abs(percentX) * (currentTranslationY - nextTranslationY);
-            ViewCompat.setTranslationY(view, translationY);
+            view.setTranslationY(translationY);
         }
     }
 
     public void performReverse(Point point, View prevView, final Animator.AnimatorListener listener) {
         reorderForReverse(prevView);
         CardContainerView topView = getTopView();
-        ViewCompat.setTranslationX(topView, point.x);
-        ViewCompat.setTranslationY(topView, -point.y);
+        topView.setTranslationX(point.x);
+        topView.setTranslationY(-point.y);
         topView.animate()
                 .translationX(topView.getViewOriginX())
                 .translationY(topView.getViewOriginY())
@@ -268,10 +279,10 @@ public class CardStackView extends FrameLayout {
         } else if (direction == SwipeDirection.Right) {
             getTopView().showRightOverlay();
             getTopView().setOverlayAlpha(1f);
-        } else if (direction == SwipeDirection.Bottom){
+        } else if (direction == SwipeDirection.Bottom) {
             getTopView().showBottomOverlay();
             getTopView().setOverlayAlpha(1f);
-        } else if (direction == SwipeDirection.Top){
+        } else if (direction == SwipeDirection.Top) {
             getTopView().showTopOverlay();
             getTopView().setOverlayAlpha(1f);
         }
@@ -367,7 +378,7 @@ public class CardStackView extends FrameLayout {
         this.cardEventListener = listener;
     }
 
-    public void setAdapter(ArrayAdapter<?> adapter) {
+    public void setAdapter(BaseAdapter adapter) {
         if (this.adapter != null) {
             this.adapter.unregisterDataSetObserver(dataSetObserver);
         }
